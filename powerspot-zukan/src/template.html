@@ -1,0 +1,591 @@
+<title>パワスポ図鑑</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500&family=Zen+Maru+Gothic:wght@400;500;700&display=swap">
+<style>
+/* Layout: 夜空の日本地図が主役。スマホは地図の下にパネル、広い画面は右にパネル */
+:root{
+  --sky:#121230; --sky-2:#1b1b45; --land:#262862; --land-hi:#34378a; --line:#40438f;
+  --ink:#f3f0ff; --ink-2:#b9b5e0; --ink-3:#8581b8;
+  --card:#1d1e4a; --card-2:#25265a;
+  --en:#ff86bd; --kin:#ffd166; --yaku:#b49bff; --iyashi:#62e6cf; --kaiun:#ff9f62;
+  --star:#ffd166;
+  --display:"Kiwi Maru","Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif;
+  --body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--sky);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6}
+*{box-sizing:border-box}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--kin);outline-offset:2px;border-radius:8px}
+
+.app{display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:0;min-height:100%;max-width:1200px;margin:0 auto;padding-inline:16px;padding-block:12px 24px}
+@media(min-width:900px){
+  .app{grid-template-columns:minmax(0,1fr) 380px;grid-template-rows:auto minmax(0,1fr);gap:0 24px;height:100%;padding-block:16px}
+  .top{grid-column:1 / -1}
+  .panel{overflow-y:auto;min-height:0}
+  .mapwrap{min-height:0}
+}
+.top{display:flex;flex-direction:column;gap:10px;padding-bottom:10px}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.brand h1{font-family:var(--display);font-weight:500;font-size:26px;margin:0;letter-spacing:.04em}
+.brand h1 span{background:linear-gradient(90deg,var(--en),var(--kin),var(--iyashi));-webkit-background-clip:text;background-clip:text;color:transparent}
+.proto{font-size:11px;color:var(--ink-3);border:1px solid var(--line);padding:1px 8px;border-radius:99px;letter-spacing:.05em}
+
+.search{position:relative}
+.search input{width:100%;background:var(--sky-2);border:1px solid var(--line);border-radius:14px;padding:10px 14px 10px 38px;font-size:16px}
+.search input::placeholder{color:var(--ink-3)}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;stroke:var(--ink-3)}
+.results{position:absolute;z-index:5;left:0;right:0;top:calc(100% + 6px);background:var(--card);border:1px solid var(--line);border-radius:14px;max-height:320px;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+.results button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;padding:10px 14px;border-bottom:1px solid var(--sky-2)}
+.results button:hover,.results button:focus-visible{background:var(--card-2)}
+.results .none{padding:12px 14px;color:var(--ink-3)}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--sky-2);border-radius:99px;padding:4px 12px;font-size:13px;color:var(--ink-2)}
+.chip i{width:10px;height:10px;border-radius:50%;background:var(--c,#fff);box-shadow:0 0 8px var(--c,#fff)}
+.chip[aria-pressed="true"]{border-color:var(--c,var(--ink));color:var(--ink);background:color-mix(in srgb,var(--c,#fff) 18%,var(--sky-2))}
+
+.mapwrap{position:relative;display:flex;flex-direction:column;gap:8px}
+.mapbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--sky-2);border:1px solid var(--line);border-radius:99px;padding:3px}
+.seg button{border:0;background:none;padding:5px 14px;border-radius:99px;font-size:13px;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--land-hi);color:var(--ink)}
+.back{border:1px solid var(--line);background:var(--sky-2);border-radius:99px;padding:5px 14px;font-size:13px}
+.mapbox{position:relative;border-radius:22px;overflow:hidden;background:radial-gradient(120% 90% at 70% 10%,#22225a 0%,var(--sky) 60%);border:1px solid var(--sky-2);flex:1;min-height:0}
+#map{display:block;width:100%;height:auto;max-height:100%;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none}
+#map.zoomed{touch-action:none}
+#map.dragging{cursor:grabbing}
+@media(min-width:900px){#map{height:100%}}
+.pref{fill:var(--land);stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke;stroke-linejoin:round;transition:fill .2s;cursor:pointer}
+.pref:hover{fill:var(--land-hi)}
+.pref.sel{fill:#3a3d96;stroke:var(--ink);stroke-width:2.5;filter:drop-shadow(0 0 4px rgba(243,240,255,.55))}
+.pref.dim{fill:#222458}
+.auras{pointer-events:none}
+.aura{animation:breathe 5s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.6}50%{opacity:.95}}
+@media(prefers-reduced-motion:reduce){.aura{animation:none}}
+.dot{cursor:pointer}
+.dot circle.core{fill:#fff}
+.dot text{font-family:var(--body);fill:var(--ink);paint-order:stroke;stroke:var(--sky);stroke-width:3px;stroke-linejoin:round}
+.inset{fill:none;stroke:var(--line);stroke-dasharray:3 3}
+.legend{position:absolute;left:12px;bottom:10px;font-size:11px;color:var(--ink-3);pointer-events:none}
+
+.panel{display:flex;flex-direction:column;gap:14px;padding-top:16px}
+.panel h2{font-family:var(--display);font-weight:500;font-size:20px;margin:0}
+.panel h3{font-size:13px;color:var(--ink-3);font-weight:500;letter-spacing:.06em;margin:0}
+.sub{color:var(--ink-2);font-size:13px;margin:0}
+.list{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;text-align:left;background:var(--card);border:1px solid transparent;border-radius:14px;padding:10px 12px}
+.row:hover{border-color:var(--line)}
+.row .nm{font-weight:500;overflow-wrap:anywhere}
+.row .meta{font-size:12px;color:var(--ink-3)}
+.orb{width:28px;height:28px;border-radius:50%;background:radial-gradient(circle,var(--c) 0%,color-mix(in srgb,var(--c) 40%,transparent) 45%,transparent 72%)}
+.rank{font-family:var(--display);color:var(--ink-3);width:22px;text-align:center;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:99px;background:var(--sky-2);overflow:hidden;display:flex}
+.bar span{display:block;height:100%}
+.num{font-variant-numeric:tabular-nums}
+
+.stars{position:relative;display:inline-block;font-size:15px;letter-spacing:2px;line-height:1;color:#3d3f7a}
+.stars::before{content:"★★★★★"}
+.stars b{position:absolute;inset:0 auto 0 0;overflow:hidden;white-space:nowrap;color:var(--star);font-weight:400}
+.stars b::before{content:"★★★★★"}
+
+.detail{display:flex;flex-direction:column;gap:12px}
+.hero{border-radius:18px;padding:18px;background:radial-gradient(130% 120% at 0% 0%,color-mix(in srgb,var(--c) 35%,transparent) 0%,transparent 60%),var(--card)}
+.hero .tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--c)}
+.hero .tag i{width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}
+.hero h2{margin:4px 0 2px}
+.score{display:flex;align-items:center;gap:8px;margin-top:8px}
+.score .big{font-family:var(--display);font-size:26px;line-height:1}
+.review{background:var(--card);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.review p{margin:0;font-size:14px}
+.review .who{font-size:12px;color:var(--ink-3);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mine{border:1px solid var(--c)}
+.form{background:var(--card-2);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.pick{display:flex;gap:4px}
+.pick button{background:none;border:0;font-size:28px;line-height:1;color:#45478a;padding:0 2px}
+.pick button.on{color:var(--star)}
+.form textarea{width:100%;min-height:70px;background:var(--sky-2);border:1px solid var(--line);border-radius:12px;padding:8px 10px;resize:vertical}
+.primary{border:0;border-radius:12px;padding:10px 16px;font-weight:700;background:linear-gradient(90deg,var(--c),color-mix(in srgb,var(--c) 60%,#fff));color:#1a1430}
+.primary:disabled{opacity:.45;cursor:default}
+.note{font-size:12px;color:var(--ink-3);margin:0}
+.toast{font-size:13px;color:var(--iyashi)}
+.empty{background:var(--card);border-radius:16px;padding:16px;color:var(--ink-2)}
+
+.ad{margin-top:4px;border:1px dashed var(--line);border-radius:12px;padding:12px;text-align:center;color:var(--ink-3);font-size:12px}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand"><h1><span>パワスポ</span>図鑑</h1><span class="proto">試作版・データはサンプル</span></div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+      <input id="q" type="search" placeholder="スポット名・県名・ご利益で探す（例：縁結び、京都）" autocomplete="off" aria-label="スポットを検索">
+      <div class="results" id="results" hidden></div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </header>
+
+  <section class="mapwrap">
+    <div class="mapbar">
+      <div class="seg" role="group" aria-label="表示切り替え">
+        <button id="v-all" aria-pressed="true">みんなのオーラ</button>
+        <button id="v-me" aria-pressed="false">わたしのオーラ</button>
+      </div>
+      <button class="back" id="back" hidden>← 日本全体</button>
+    </div>
+    <div class="mapbox">
+      <svg id="map" viewBox="10 5 685 655" role="img" aria-label="日本地図。都道府県をタップするとスポットが見られます">
+        <defs id="defs"></defs>
+        <g id="prefs"></g>
+        <rect class="inset" x="78" y="140" width="64" height="66" rx="6"/>
+        <g class="auras" id="auras"></g>
+        <g id="dots"></g>
+      </svg>
+      <div class="legend" id="legend">光が強いほどスポットが多く、評価も高い場所</div>
+    </div>
+  </section>
+
+  <aside class="panel" id="panel" aria-live="polite"></aside>
+</div>
+
+<script>
+const PREFS = __PREFS__;
+
+const CATS = {
+  en:     {label:"縁結び", color:"var(--en)",     hex:"#ff86bd"},
+  kin:    {label:"金運",   color:"var(--kin)",    hex:"#ffd166"},
+  yaku:   {label:"厄除け", color:"var(--yaku)",   hex:"#b49bff"},
+  iyashi: {label:"癒し",   color:"var(--iyashi)", hex:"#62e6cf"},
+  kaiun:  {label:"開運",   color:"var(--kaiun)",  hex:"#ff9f62"}
+};
+
+// サンプルデータ：場所は実在、星と件数と投稿は試作用の架空の値
+const SPOTS = [
+  ["hokkaido","北海道神宮","北海道",43.054,141.307,"kaiun","円山公園に隣接する北海道の総鎮守。"],
+  ["osorezan","恐山","青森県",41.328,141.088,"yaku","日本三大霊場のひとつ。荒涼とした風景で知られる。"],
+  ["kinkasan","金華山黄金山神社","宮城県",38.293,141.558,"kin","3年続けてお参りすると一生お金に困らないという言い伝えがある。"],
+  ["haguro","出羽三山 羽黒山","山形県",38.700,140.006,"kaiun","生まれ変わりの旅と呼ばれる山岳信仰の聖地。"],
+  ["nikko","日光東照宮","栃木県",36.758,139.599,"kaiun","徳川家康を祀る。陽明門が有名。"],
+  ["kashima","鹿島神宮","茨城県",35.969,140.631,"kaiun","武道の神様として知られる。奥宮へ続く森の参道。"],
+  ["katori","香取神宮","千葉県",35.886,140.527,"kaiun","鹿島神宮と並ぶ古社。勝運祈願で知られる。"],
+  ["mitsumine","三峯神社","埼玉県",35.925,138.930,"kaiun","秩父の山上にある神社。白い「氣守」が人気。"],
+  ["meiji","明治神宮","東京都",35.676,139.699,"iyashi","都心にある広大な森。清正井が知られる。"],
+  ["daijingu","東京大神宮","東京都",35.700,139.746,"en","縁結びで知られる「東京のお伊勢さま」。"],
+  ["hakone","箱根神社","神奈川県",35.204,139.025,"kaiun","芦ノ湖に立つ平和の鳥居が有名。"],
+  ["arayama","新屋山神社","山梨県",35.470,138.790,"kin","金運神社として知られる。富士山の麓にある。"],
+  ["togakushi","戸隠神社","長野県",36.750,138.080,"iyashi","奥社へ続く杉並木の参道で知られる。"],
+  ["suwa","諏訪大社","長野県",36.073,138.120,"kaiun","御柱祭で知られる信濃国一之宮。"],
+  ["bunkui","分杭峠","長野県",35.790,138.050,"iyashi","「ゼロ磁場」と呼ばれ話題になった峠。"],
+  ["shirayama","白山比咩神社","石川県",36.440,136.630,"en","「くくり姫」を祀り、縁結びで知られる。"],
+  ["kinken","金劔宮","石川県",36.490,136.630,"kin","金運で知られる古社。"],
+  ["atsuta","熱田神宮","愛知県",35.128,136.909,"kaiun","三種の神器の草薙神剣を祀る。"],
+  ["ise","伊勢神宮 内宮","三重県",34.455,136.725,"kaiun","天照大御神を祀る。五十鈴川の御手洗場がある。"],
+  ["tsubaki","椿大神社","三重県",34.950,136.470,"en","みちびきの神・猿田彦大神を祀る。"],
+  ["fushimi","伏見稲荷大社","京都府",34.967,135.773,"kin","千本鳥居で有名な商売繁盛の神社。"],
+  ["kifune","貴船神社","京都府",35.121,135.763,"en","水の神様。水占みくじが人気。"],
+  ["yasaka","八坂神社","京都府",35.004,135.779,"yaku","祇園祭で知られる厄除けの社。"],
+  ["omiwa","大神神社","奈良県",34.529,135.853,"iyashi","三輪山そのものをご神体とする古社。"],
+  ["kasuga","春日大社","奈良県",34.681,135.848,"en","朱の回廊と釣燈籠で知られる。"],
+  ["kumano","熊野本宮大社","和歌山県",33.840,135.773,"kaiun","熊野古道の目的地。大斎原の大鳥居がある。"],
+  ["izumo","出雲大社","島根県",35.402,132.685,"en","縁結びの代表格。大しめ縄で知られる。"],
+  ["itsukushima","厳島神社","広島県",34.296,132.320,"kaiun","海に浮かぶ大鳥居で知られる世界遺産。"],
+  ["konpira","金刀比羅宮","香川県",34.184,133.809,"kin","長い石段で知られる「こんぴらさん」。"],
+  ["munakata","宗像大社","福岡県",33.830,130.514,"kaiun","道の神様。世界遺産の構成資産。"],
+  ["dazaifu","太宰府天満宮","福岡県",33.519,130.535,"kaiun","菅原道真を祀る学問の神様。"],
+  ["aso","阿蘇神社","熊本県",32.950,131.120,"iyashi","阿蘇山の神々を祀る古社。"],
+  ["takachiho","高千穂峡","宮崎県",32.703,131.300,"iyashi","真名井の滝が流れ落ちる渓谷。"],
+  ["amanoiwato","天岩戸神社","宮崎県",32.739,131.333,"yaku","天岩戸伝説の舞台とされる。"],
+  ["yakushima","屋久島 白谷雲水峡","鹿児島県",30.380,130.570,"iyashi","苔むした森が広がる渓谷。"],
+  ["sefa","斎場御嶽","沖縄県",26.173,127.827,"iyashi","琉球王国最高の聖地とされる。"],
+  ["naminoue","波上宮","沖縄県",26.221,127.671,"yaku","海を望む崖の上にある琉球八社の一つ。"]
+].map(([id,name,pref,lat,lng,cat,desc],i)=>{
+  // 試作用の架空の評価（決定的に生成）
+  const h=[...id].reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,7);
+  return {id,name,pref,lat,lng,cat,desc,avg:3.6+(h%14)/10,count:40+(h%900)};
+});
+
+const SAMPLE_REVIEWS = [
+  {who:"そらまめ",stars:5,text:"朝いちばんに行ったら人が少なくて、空気がすごく澄んでました。"},
+  {who:"旅するねこ",stars:4,text:"参道の木がきれい。歩きやすい靴で行くのがおすすめです。"},
+  {who:"mika",stars:4,text:"思ったより混んでいたけど、お守りがかわいかった。"}
+];
+
+// ---- 地図の座標変換（simplify と同じ式） ----
+const K=40, C=Math.cos(36*Math.PI/180);
+function proj(lng,lat,pref){
+  if(pref==="沖縄県"){lng+=3.6;lat+=15.2}
+  return [(lng-128)*K*C,(46-lat)*K];
+}
+SPOTS.forEach(s=>{[s.x,s.y]=proj(s.lng,s.lat,s.pref)});
+
+// ---- 状態 ----
+const store={
+  get(){try{return JSON.parse(localStorage.getItem("pwsp-visits")||"{}")}catch(e){return {}}},
+  set(v){try{localStorage.setItem("pwsp-visits",JSON.stringify(v))}catch(e){}}
+};
+const state={view:"all",cat:null,pref:null,spot:null,visits:store.get(),draft:0};
+
+const $=s=>document.querySelector(s);
+const NS="http://www.w3.org/2000/svg";
+const el=(tag,attrs={},parent)=>{const n=document.createElementNS(NS,tag);for(const k in attrs)n.setAttribute(k,attrs[k]);parent&&parent.appendChild(n);return n};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const starHTML=v=>`<span class="stars" aria-label="星${v.toFixed(1)}"><b style="width:${v/5*100}%"></b></span>`;
+
+// ---- 定義：オーラのグラデーション ----
+const defs=$("#defs");
+for(const k in CATS){
+  const g=el("radialGradient",{id:"g-"+k},defs);
+  el("stop",{offset:"0%","stop-color":CATS[k].hex,"stop-opacity":".85"},g);
+  el("stop",{offset:"35%","stop-color":CATS[k].hex,"stop-opacity":".35"},g);
+  el("stop",{offset:"100%","stop-color":CATS[k].hex,"stop-opacity":"0"},g);
+}
+
+// ---- 都道府県 ----
+const prefG=$("#prefs"), prefEls={};
+PREFS.forEach(p=>{
+  const path=el("path",{d:p.d,class:"pref","data-name":p.name,tabindex:"0","aria-label":p.name},prefG);
+  path.addEventListener("click",()=>openPref(p.name));
+  path.addEventListener("keydown",e=>{if(e.key==="Enter")openPref(p.name)});
+  prefEls[p.name]=path;
+});
+
+// ---- カテゴリチップ ----
+const chips=$("#chips");
+function renderChips(){
+  chips.innerHTML="";
+  const mk=(key,label,color)=>{
+    const b=document.createElement("button");
+    b.className="chip";b.setAttribute("aria-pressed",String(state.cat===key));
+    if(color)b.style.setProperty("--c",color);
+    b.innerHTML=(color?"<i></i>":"")+label;
+    b.onclick=()=>{state.cat=key;renderAll()};
+    chips.appendChild(b);
+  };
+  mk(null,"すべて");
+  for(const k in CATS)mk(k,CATS[k].label,CATS[k].color);
+}
+
+// ---- オーラ描画 ----
+function visibleSpots(){
+  return SPOTS.filter(s=>{
+    if(state.cat&&s.cat!==state.cat)return false;
+    if(state.view==="me"&&!state.visits[s.id])return false;
+    return true;
+  });
+}
+function renderAuras(){
+  const g=$("#auras");g.innerHTML="";
+  visibleSpots().forEach((s,i)=>{
+    // 投稿が多く評価が高いほど大きく光る
+    const r=state.view==="me"?34:10+Math.sqrt(s.count)*0.55*(s.avg/4.5);
+    const c=el("circle",{cx:s.x,cy:s.y,r:r*auraScale(),"data-r":r,fill:`url(#g-${s.cat})`,class:"aura"},g);
+    c.style.animationDelay=(-(i*0.37)%5)+"s";
+  });
+}
+function renderDots(){
+  const g=$("#dots");g.innerHTML="";
+  if(!state.pref)return;
+  const box=prefEls[state.pref].getBBox();
+  const fs=Math.max(box.width,box.height)/22;
+  visibleSpots().filter(s=>s.pref===state.pref).forEach(s=>{
+    const d=el("g",{class:"dot",tabindex:"0",role:"button","aria-label":s.name},g);
+    el("circle",{cx:s.x,cy:s.y,r:fs*0.9,fill:CATS[s.cat].hex,opacity:".35"},d);
+    el("circle",{cx:s.x,cy:s.y,r:fs*0.35,class:"core"},d);
+    const t=el("text",{x:s.x+fs*1.1,y:s.y+fs*0.35,"font-size":fs},d);
+    t.textContent=s.name;
+    d.addEventListener("click",e=>{e.stopPropagation();openSpot(s.id)});
+    d.addEventListener("keydown",e=>{if(e.key==="Enter")openSpot(s.id)});
+  });
+}
+function renderPrefs(){
+  for(const n in prefEls){
+    const p=prefEls[n];
+    p.classList.toggle("sel",state.pref===n);
+    p.classList.toggle("dim",!!state.pref&&state.pref!==n);
+  }
+  // 選んだ県を最前面に出して、輪郭が隣の県の線に隠れないようにする
+  if(state.pref)prefG.appendChild(prefEls[state.pref]);
+}
+
+// ---- ズーム（viewBoxをアニメーション） ----
+const FULL=[10,5,685,655];
+let vb=[...FULL],anim;
+function zoomTo(target){
+  cancelAnimationFrame(anim);
+  target=clampVB(target);
+  const from=[...vb],t0=performance.now(),dur=matchMedia("(prefers-reduced-motion: reduce)").matches?0:550;
+  const step=now=>{
+    const k=dur?Math.min(1,(now-t0)/dur):1,e=1-Math.pow(1-k,3);
+    setVB(from.map((v,i)=>v+(target[i]-v)*e),false);
+    if(k<1)anim=requestAnimationFrame(step);
+  };
+  anim=requestAnimationFrame(step);
+}
+function prefBox(name){
+  const b=prefEls[name].getBBox();
+  const pad=Math.max(b.width,b.height)*0.25+8;
+  let w=b.width+pad*2,h=b.height+pad*2;
+  const ar=FULL[2]/FULL[3];
+  if(w/h>ar)h=w/ar;else w=h*ar;
+  return [b.x+b.width/2-w/2,b.y+b.height/2-h/2,w,h];
+}
+
+
+// ---- 拡大縮小：スマホはピンチ（2本指）、パソコンはホイールとドラッグ ----
+const svg=$("#map");
+// 拡大するほどオーラを小さくして、画面がオーラで埋まらないようにする
+function auraScale(){return Math.max(0.15,Math.pow(vb[2]/FULL[2],0.75))}
+// 縮小は日本全体まで。地図が枠の外に出ていかないように位置も制限する
+function clampVB([x,y,w,h]){
+  const minW=FULL[2]*0.05;
+  if(w>FULL[2]){h*=FULL[2]/w;w=FULL[2]}
+  if(w<minW){h*=minW/w;w=minW}
+  const fit=(p,size,lo,full)=>size>=full?lo+(full-size)/2:Math.min(Math.max(p,lo),lo+full-size);
+  return [fit(x,w,FULL[0],FULL[2]),fit(y,h,FULL[1],FULL[3]),w,h];
+}
+function setVB(v,clamp=true){
+  let [x,y,w,h]=clamp?clampVB(v):v;
+  vb=[x,y,w,h];
+  svg.setAttribute("viewBox",vb.join(" "));
+  const sc=auraScale();
+  document.querySelectorAll("#auras .aura").forEach(c=>c.setAttribute("r",c.dataset.r*sc));
+  const zoomed=w<FULL[2]*0.98;
+  svg.classList.toggle("zoomed",zoomed);
+  $("#back").hidden=!(zoomed||state.pref);
+}
+function toSvg(px,py){const pt=svg.createSVGPoint();pt.x=px;pt.y=py;return pt.matrixTransform(svg.getScreenCTM().inverse())}
+function zoomAt(px,py,factor){
+  const p=toSvg(px,py),k=factor;
+  setVB([p.x-(p.x-vb[0])*k,p.y-(p.y-vb[1])*k,vb[2]*k,vb[3]*k]);
+}
+function panBy(dx,dy){const m=svg.getScreenCTM();setVB([vb[0]-dx/m.a,vb[1]-dy/m.d,vb[2],vb[3]])}
+
+let moved=0;
+// ドラッグした直後の指離しで県が選ばれないようにする
+svg.addEventListener("click",e=>{if(moved>8){e.stopPropagation();e.preventDefault()}moved=0},true);
+
+let touch=null;
+const mid=t=>[(t[0].clientX+t[1].clientX)/2,(t[0].clientY+t[1].clientY)/2];
+const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY)||1;
+svg.addEventListener("touchstart",e=>{
+  cancelAnimationFrame(anim);moved=0;
+  const t=e.touches;
+  touch=t.length>=2?{m:mid(t),d:dist(t)}:{m:[t[0].clientX,t[0].clientY]};
+},{passive:true});
+svg.addEventListener("touchmove",e=>{
+  if(!touch)return;
+  const t=e.touches;
+  if(t.length>=2){
+    e.preventDefault();
+    const m=mid(t),d=dist(t);
+    if(touch.d){zoomAt(m[0],m[1],touch.d/d);panBy(m[0]-touch.m[0],m[1]-touch.m[1])}
+    moved+=Math.abs(m[0]-touch.m[0])+Math.abs(m[1]-touch.m[1])+Math.abs(d-(touch.d||d));
+    touch={m,d};
+  }else if(svg.classList.contains("zoomed")){
+    // 拡大中は1本指で地図を動かす。全体表示のときはページのスクロールを優先
+    e.preventDefault();
+    const m=[t[0].clientX,t[0].clientY];
+    panBy(m[0]-touch.m[0],m[1]-touch.m[1]);
+    moved+=Math.abs(m[0]-touch.m[0])+Math.abs(m[1]-touch.m[1]);
+    touch={m};
+  }
+},{passive:false});
+svg.addEventListener("touchend",e=>{
+  const t=e.touches;
+  touch=t.length?{m:[t[0].clientX,t[0].clientY]}:null;
+});
+
+svg.addEventListener("wheel",e=>{
+  e.preventDefault();cancelAnimationFrame(anim);
+  zoomAt(e.clientX,e.clientY,Math.exp(e.deltaY*0.0015));
+},{passive:false});
+let drag=null;
+svg.addEventListener("pointerdown",e=>{
+  if(e.pointerType!=="mouse"||e.button!==0)return;
+  cancelAnimationFrame(anim);moved=0;drag=[e.clientX,e.clientY];
+});
+addEventListener("pointermove",e=>{
+  if(!drag)return;
+  const dx=e.clientX-drag[0],dy=e.clientY-drag[1];
+  moved+=Math.abs(dx)+Math.abs(dy);
+  if(moved>8){svg.classList.add("dragging");panBy(dx,dy)}
+  drag=[e.clientX,e.clientY];
+});
+addEventListener("pointerup",()=>{drag=null;svg.classList.remove("dragging")});
+
+// ---- パネル ----
+const panel=$("#panel");
+const AD=`<div class="ad">広告枠（試作）— ここに地域の宿やお土産の広告が入るイメージ</div>`;
+
+function prefStats(){
+  const m={};
+  visibleSpots().forEach(s=>{(m[s.pref]??={pref:s.pref,n:0,cats:{},posts:0});m[s.pref].n++;m[s.pref].posts+=s.count;m[s.pref].cats[s.cat]=(m[s.pref].cats[s.cat]||0)+1});
+  return Object.values(m).sort((a,b)=>b.n-a.n||b.posts-a.posts);
+}
+function catBar(cats,total){
+  return `<div class="bar">${Object.keys(CATS).filter(k=>cats[k]).map(k=>`<span style="width:${cats[k]/total*100}%;background:${CATS[k].color}"></span>`).join("")}</div>`;
+}
+function renderHome(){
+  if(state.view==="me")return renderMe();
+  const st=prefStats().slice(0,8);
+  const label=state.cat?`「${CATS[state.cat].label}」の`:"";
+  panel.innerHTML=`
+    <div><h2>${label}オーラが強い県</h2><p class="sub">地図の県をタップするか、上の検索から探せます。</p></div>
+    <ol class="list">${st.map((p,i)=>`
+      <li><button class="row" data-pref="${esc(p.pref)}">
+        <span class="rank">${i+1}</span>
+        <span style="min-width:0"><span class="nm">${esc(p.pref)}</span>
+          <span class="meta num"> ${p.n}スポット・投稿${p.posts.toLocaleString()}件</span>
+          ${catBar(p.cats,p.n)}</span>
+        <span class="meta">›</span>
+      </button></li>`).join("")||`<li class="empty">このご利益のスポットはまだありません。</li>`}
+    </ol>${AD}`;
+  panel.querySelectorAll("[data-pref]").forEach(b=>b.onclick=()=>openPref(b.dataset.pref));
+}
+function renderMe(){
+  const ids=Object.keys(state.visits);
+  const mine=SPOTS.filter(s=>state.visits[s.id]);
+  if(!mine.length){
+    panel.innerHTML=`<div><h2>わたしのオーラ</h2><p class="sub">行った場所を記録すると、ここで地図がだんだん光っていきます。</p></div>
+      <div class="empty">まだ記録がありません。地図で県をタップしてスポットを選び、「行った！」から星をつけてみてください。</div>
+      <button class="back" id="try" style="align-self:flex-start">ためしに出雲大社をひらく</button>${AD}`;
+    $("#try").onclick=()=>{setView("all");openSpot("izumo")};
+    return;
+  }
+  const cats={};mine.forEach(s=>cats[s.cat]=(cats[s.cat]||0)+1);
+  const top=Object.keys(cats).sort((a,b)=>cats[b]-cats[a])[0];
+  const prefs=new Set(mine.map(s=>s.pref)).size;
+  panel.innerHTML=`
+    <div class="hero" style="--c:${CATS[top].color}">
+      <h3>あなたのオーラ</h3>
+      <h2>${CATS[top].label}いろ</h2>
+      <p class="sub num">${mine.length}スポット・${prefs}都道府県</p>
+      <div style="margin-top:10px">${catBar(cats,mine.length)}</div>
+      <p class="note" style="margin-top:8px">${Object.keys(cats).map(k=>`${CATS[k].label} ${cats[k]}`).join("　")}</p>
+    </div>
+    <h3>行った場所</h3>
+    <ul class="list">${mine.map(s=>`
+      <li><button class="row" data-spot="${s.id}" style="--c:${CATS[s.cat].color}">
+        <span class="orb"></span>
+        <span style="min-width:0"><span class="nm">${esc(s.name)}</span><span class="meta"> ${esc(s.pref)}・${esc(state.visits[s.id].date)}</span></span>
+        ${starHTML(state.visits[s.id].stars)}
+      </button></li>`).join("")}</ul>
+    <p class="note">この試作では、記録はこの端末のブラウザにだけ保存されます。</p>${AD}`;
+  panel.querySelectorAll("[data-spot]").forEach(b=>b.onclick=()=>openSpot(b.dataset.spot));
+}
+function renderPref(){
+  const list=visibleSpots().filter(s=>s.pref===state.pref).sort((a,b)=>b.avg-a.avg);
+  const all=SPOTS.filter(s=>s.pref===state.pref);
+  panel.innerHTML=`
+    <div><h2>${esc(state.pref)}</h2><p class="sub num">${all.length}スポット${state.cat||state.view==="me"?`（表示中 ${list.length}）`:""}</p></div>
+    <ul class="list">${list.map(s=>`
+      <li><button class="row" data-spot="${s.id}" style="--c:${CATS[s.cat].color}">
+        <span class="orb"></span>
+        <span style="min-width:0"><span class="nm">${esc(s.name)}</span><span class="meta"> ${CATS[s.cat].label}・投稿${s.count}件</span></span>
+        <span class="num" style="display:flex;align-items:center;gap:6px">${starHTML(s.avg)}<span class="meta">${s.avg.toFixed(1)}</span></span>
+      </button></li>`).join("")||`<li class="empty">${all.length?"この条件に合うスポットはありません。":"この県のスポットはまだ登録されていません。最初の投稿者になれます（試作では未実装）。"}</li>`}
+    </ul>${AD}`;
+  panel.querySelectorAll("[data-spot]").forEach(b=>b.onclick=()=>openSpot(b.dataset.spot));
+}
+function renderSpot(){
+  const s=SPOTS.find(x=>x.id===state.spot), cat=CATS[s.cat], mine=state.visits[s.id];
+  panel.innerHTML=`
+    <div class="detail" style="--c:${cat.color}">
+      <button class="back" id="toPref" style="align-self:flex-start">← ${esc(s.pref)}</button>
+      <div class="hero">
+        <span class="tag"><i></i>${cat.label}のオーラ</span>
+        <h2>${esc(s.name)}</h2>
+        <p class="sub">${esc(s.pref)}</p>
+        <p style="margin:8px 0 0">${esc(s.desc)}</p>
+        <div class="score"><span class="big num">${s.avg.toFixed(1)}</span>${starHTML(s.avg)}<span class="meta num">（${s.count}件）</span></div>
+      </div>
+      <div class="form">
+        <h3>${mine?"あなたの記録":"行ったことがある？"}</h3>
+        <div class="pick" id="pick" role="radiogroup" aria-label="星の数">${[1,2,3,4,5].map(n=>`<button role="radio" aria-checked="false" aria-label="星${n}" data-n="${n}">★</button>`).join("")}</div>
+        <textarea id="cmt" placeholder="どんな場所だった？（任意）">${mine?esc(mine.comment):""}</textarea>
+        <button class="primary" id="save" disabled>${mine?"記録を更新する":"行った！として記録する"}</button>
+        <span class="toast" id="toast" hidden></span>
+      </div>
+      <h3>みんなの投稿（サンプル）</h3>
+      ${mine?`<div class="review mine"><div class="who">あなた ${starHTML(mine.stars)} ${esc(mine.date)}</div>${mine.comment?`<p>${esc(mine.comment)}</p>`:""}</div>`:""}
+      ${SAMPLE_REVIEWS.map(r=>`<div class="review"><div class="who">${esc(r.who)} ${starHTML(r.stars)}</div><p>${esc(r.text)}</p></div>`).join("")}
+      ${AD}
+    </div>`;
+  state.draft=mine?mine.stars:0;
+  const pick=$("#pick"),save=$("#save");
+  const paint=()=>{pick.querySelectorAll("button").forEach(b=>{const on=+b.dataset.n<=state.draft;b.classList.toggle("on",on);b.setAttribute("aria-checked",String(+b.dataset.n===state.draft))});save.disabled=!state.draft};
+  pick.querySelectorAll("button").forEach(b=>b.onclick=()=>{state.draft=+b.dataset.n;paint()});
+  paint();
+  save.onclick=()=>{
+    const d=new Date();
+    state.visits[s.id]={stars:state.draft,comment:$("#cmt").value.trim(),date:`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`};
+    store.set(state.visits);
+    renderSpot();
+    const t=$("#toast");t.hidden=false;t.textContent="記録しました。「わたしのオーラ」に光が増えました。";
+    renderAuras();
+  };
+  $("#toPref").onclick=()=>openPref(s.pref);
+}
+
+// ---- 画面遷移 ----
+function openPref(name){
+  state.pref=name;state.spot=null;
+  $("#back").hidden=false;
+  zoomTo(prefBox(name));
+  renderAll();
+  if(matchMedia("(max-width:899px)").matches)panel.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function openSpot(id){
+  const s=SPOTS.find(x=>x.id===id);
+  if(state.pref!==s.pref){state.pref=s.pref;$("#back").hidden=false;zoomTo(prefBox(s.pref))}
+  state.spot=id;renderAll();
+}
+function goHome(){state.pref=null;state.spot=null;zoomTo(FULL);renderAll()}
+$("#back").onclick=goHome;
+
+function setView(v){
+  state.view=v;
+  $("#v-all").setAttribute("aria-pressed",String(v==="all"));
+  $("#v-me").setAttribute("aria-pressed",String(v==="me"));
+  $("#legend").textContent=v==="me"?"あなたが行った場所だけが光ります":"光が強いほどスポットが多く、評価も高い場所";
+  renderAll();
+}
+$("#v-all").onclick=()=>setView("all");
+$("#v-me").onclick=()=>{state.pref=null;state.spot=null;$("#back").hidden=true;zoomTo(FULL);setView("me")};
+
+function renderAll(){
+  renderChips();renderPrefs();renderAuras();renderDots();
+  if(state.spot)renderSpot();else if(state.pref)renderPref();else renderHome();
+}
+
+// ---- 検索 ----
+const q=$("#q"),results=$("#results");
+q.addEventListener("input",()=>{
+  const v=q.value.trim();
+  if(!v){results.hidden=true;return}
+  const hit=SPOTS.filter(s=>(s.name+s.pref+CATS[s.cat].label+s.desc).includes(v)).slice(0,12);
+  const prefHit=PREFS.filter(p=>p.name.includes(v)&&!hit.some(s=>s.pref===p.name)).slice(0,3);
+  results.innerHTML=hit.map(s=>`<button data-spot="${s.id}" style="--c:${CATS[s.cat].color}"><span class="orb"></span><span style="min-width:0">${esc(s.name)}<span class="meta" style="font-size:12px;color:var(--ink-3)"> ${esc(s.pref)}・${CATS[s.cat].label}</span></span></button>`).join("")
+    +prefHit.map(p=>`<button data-pref="${esc(p.name)}"><span class="orb" style="--c:var(--ink-3)"></span>${esc(p.name)}を地図で見る</button>`).join("")
+    ||`<div class="none">「${esc(v)}」に合うスポットは見つかりませんでした。</div>`;
+  results.hidden=false;
+  results.querySelectorAll("[data-spot]").forEach(b=>b.onclick=()=>{results.hidden=true;q.value="";openSpot(b.dataset.spot)});
+  results.querySelectorAll("[data-pref]").forEach(b=>b.onclick=()=>{results.hidden=true;q.value="";openPref(b.dataset.pref)});
+});
+document.addEventListener("click",e=>{if(!e.target.closest(".search"))results.hidden=true});
+q.addEventListener("keydown",e=>{if(e.key==="Escape"){results.hidden=true;q.blur()}});
+
+// ---- 背景の星（画像として背景に敷く。地図の上には何も重ねない） ----
+function drawSky(){
+  let seed=42;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  let dots="";
+  for(let i=0;i<90;i++)dots+=`<circle cx="${(rnd()*400).toFixed(1)}" cy="${(rnd()*400).toFixed(1)}" r="${(rnd()*1.1+0.2).toFixed(2)}" fill="#fff" fill-opacity="${(0.1+rnd()*0.35).toFixed(2)}"/>`;
+  const url="data:image/svg+xml,"+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400">${dots}</svg>`);
+  $(".mapbox").style.backgroundImage=`url("${url}"),radial-gradient(120% 90% at 70% 10%,#22225a 0%,#121230 60%)`;
+}
+renderAll();drawSky();
+</script>
